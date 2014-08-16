@@ -5,7 +5,7 @@ use std::io;
 use std::io::{IoError, IoResult, TcpStream};
 use std::io::BufferedStream;
 use std::{char,str,uint};
-use std::slice::MutableCloneableVector;
+use std::slice::Slice;
 use std::str::MaybeOwned;
 use std::cmp::min;
 use std::comm;
@@ -22,7 +22,7 @@ mod handlers;
 /// library otherwise.
 pub struct Conn<'a> {
     host: &'a str,
-    write_tx: Option<Sender<~[u8]>>,
+    write_tx: Option<Sender<Vec<u8>>>,
     logged_in: bool,
     user: User,
 }
@@ -160,7 +160,7 @@ impl<'a> Conn<'a> {
                         Err(_) => break,
                         Ok(v) => v
                     };
-                    match stream.write(line).and_then(|_| stream.flush()) {
+                    match stream.write(line.as_slice()).and_then(|_| stream.flush()) {
                         Ok(_) => (),
                         Err(e) => {
                             if e.kind != io::EndOfFile {
@@ -337,7 +337,7 @@ impl<'a> Conn<'a> {
     /// that the caller will provide valid arguments and will ':'-prefix as necessary.
     ///
     /// The add_colon flag causes the final argument in the args list to have a ':' prepended.
-    pub fn send_command<V: Vector<u8>>(&mut self, cmd: Command, args: &[V], add_colon: bool) {
+    pub fn send_command<V: Slice<u8>>(&mut self, cmd: Command, args: &[V], add_colon: bool) {
         if !{
             let chan = match self.write_tx {
                 None => return,
@@ -511,7 +511,7 @@ fn chomp<'a>(s: &'a [u8]) -> &'a [u8] {
 }
 
 /// An IRC command
-#[deriving(Eq,Clone)]
+#[deriving(PartialEq,Eq,Clone)]
 pub enum Command {
     /// An IRC command
     IRCCmd(MaybeOwned<'static>),
@@ -555,7 +555,7 @@ impl fmt::Show for Command {
 }
 
 /// A parsed line
-#[deriving(Eq,Clone)]
+#[deriving(PartialEq, Eq,Clone)]
 pub struct Line {
     /// The optional prefix
     pub prefix: Option<User>,
@@ -567,7 +567,7 @@ pub struct Line {
 
 impl fmt::Show for Line {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, r"Line\{ prefix: {}, command: {}, args: [", self.prefix, self.command));
+        try!(write!(f, r"Line{{ prefix: {}, command: {}, args: [", self.prefix, self.command));
         for (i, v) in self.args.iter().enumerate() {
             if i != 0 {
                 try!(write!(f, ", "));
@@ -587,7 +587,7 @@ impl Line {
                 None => return None,
                 Some(idx) => idx
             };
-            prefix = Some(User::parse(v.slice(1, idx).to_owned()));
+            prefix = Some(User::parse(v.slice(1, idx)));
             v = v.slice_from(idx+1);
         }
         let (mut command, checkCTCP) = {

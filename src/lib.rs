@@ -16,7 +16,7 @@ pub mod conn;
 /// Representation of an IRC user
 #[deriving(Clone)]
 pub struct User {
-    raw: ~[u8],
+    raw: Vec<u8>,
     nicklen: uint,
     user: Option<(uint, uint)>,
     host: Option<(uint, uint)>
@@ -97,11 +97,12 @@ impl User {
     }
 }
 
-impl Eq for User {
+impl PartialEq for User {
     fn eq(&self, other: &User) -> bool {
         self.raw == other.raw
     }
 }
+impl Eq for User {}
 
 impl fmt::Show for User {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
