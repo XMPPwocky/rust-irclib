@@ -200,7 +200,7 @@ impl<'a> Conn<'a> {
 
         // send handshake commands
         self.send_command(IRCCmd("NICK".into_maybe_owned()), [opts.nick.as_bytes()], false);
-        self.send_command(IRCCmd("USER".into_maybe_owned()), [opts.user.as_bytes(), bytes!("8 *"),
+        self.send_command(IRCCmd("USER".into_maybe_owned()), [opts.user.as_bytes(), b"8 *",
                           opts.real.as_bytes()], true);
 
 
@@ -366,42 +366,42 @@ impl<'a> Conn<'a> {
                         });
                     }
                     IRCAction(ref dst) | IRCCTCP(ref dst,_) => {
-                        append(&mut buf, bytes!("PRIVMSG "));
+                        append(&mut buf, b"PRIVMSG ");
                         append(&mut buf, dst.as_slice());
-                        append(&mut buf, bytes!(" :\x01"));
+                        append(&mut buf, b" :\x01");
                         let action = match cmd {
-                            IRCAction(_) => { static b: &'static [u8] = bytes!("ACTION"); b }
+                            IRCAction(_) => { static b: &'static [u8] = b"ACTION"; b }
                             IRCCTCP(_,ref action) => action.as_slice(),
                             _ => unreachable!()
                         };
                         append(&mut buf, action);
                     }
                     IRCCTCPReply(dst, action) => {
-                        append(&mut buf, bytes!("NOTICE "));
+                        append(&mut buf, b"NOTICE ");
                         append(&mut buf, dst.as_slice());
-                        append(&mut buf, bytes!(" :\x01"));
+                        append(&mut buf, b" :\x01");
                         append(&mut buf, action.as_slice());
                     }
                 }
                 if !args.is_empty() {
                     for arg in args.init().iter() {
-                        append(&mut buf, bytes!(" "));
+                        append(&mut buf, b" ");
                         append(&mut buf, arg.as_slice());
                     }
                     if add_colon {
-                        append(&mut buf, bytes!(" :"));
+                        append(&mut buf, b" :");
                     } else {
-                        append(&mut buf, bytes!(" "));
+                        append(&mut buf, b" ");
                     }
                     append(&mut buf, args.last().unwrap().as_slice());
                 }
                 if is_ctcp {
-                    append(&mut buf, bytes!("\x01"));
+                    append(&mut buf, b"\x01");
                 }
                 510 - buf.len()
             };
             debug!("[DEBUG] Sent line: {}", str::from_utf8_lossy(line.slice_to(len)));
-            line.mut_slice_from(len).copy_from(bytes!("\r\n"));
+            line.mut_slice_from(len).copy_from(b"\r\n");
             chan.send_opt(line.slice_to(len+2).to_owned()).is_ok()
         } {
             self.write_tx = None;
@@ -423,7 +423,7 @@ impl<'a> Conn<'a> {
             let mut line = [0u8, ..512];
             let len = line.mut_slice_to(510).copy_from(raw);
             debug!("[DEBUG] Sent line: {}", str::from_utf8_lossy(line.slice_to(len)));
-            line.mut_slice_from(len).copy_from(bytes!("\r\n"));
+            line.mut_slice_from(len).copy_from(b"\r\n");
             chan.send_opt(line.slice_to(len+2).to_owned()).is_ok()
         } {
             self.write_tx = None;
@@ -582,7 +582,7 @@ impl Line {
     /// Parse a line into a Line struct
     pub fn parse(mut v: &[u8]) -> Option<Line> {
         let mut prefix = None;
-        if v.starts_with(bytes!(":")) {
+        if v.starts_with(b":") {
             let idx = match v.position_elem(&(' ' as u8)) {
                 None => return None,
                 Some(idx) => idx
@@ -596,7 +596,7 @@ impl Line {
                 Some(0) => return None,
                 None => {
                     cmd = v;
-                    v = &[];
+                    v = [].as_slice();
                 }
                 Some(idx) => {
                     cmd = v.slice_to(idx);
@@ -606,7 +606,7 @@ impl Line {
             if cmd.len() == 3 && cmd.iter().all(|&b| b >= '0' as u8 && b <= '9' as u8) {
                 (IRCCode(uint::parse_bytes(cmd, 10).unwrap()), false)
             } else if cmd.iter().all(|&b| b < 0x80 && char::is_alphabetic(b as char)) {
-                let shouldCheck = cmd == bytes!("PRIVMSG") || cmd == bytes!("NOTICE");
+                let shouldCheck = cmd == b"PRIVMSG" || cmd == b"NOTICE";
                 (IRCCmd(str::from_utf8(cmd).unwrap().to_owned().into_maybe_owned()), shouldCheck)
             } else {
                 return None;
@@ -654,7 +654,7 @@ impl Line {
             };
             match cmdstr {
                 "PRIVMSG" => {
-                    if bytes!("ACTION") == ctcpcmd.as_slice() {
+                    if b"ACTION" == ctcpcmd.as_slice() {
                         command = IRCAction(dst);
                         if args.is_empty() {
                             args.push(Vec::new());
@@ -729,20 +729,20 @@ impl Line {
                 })
             }
             IRCAction(ref dst) => {
-                res.push_all(bytes!("PRIVMSG "));
+                res.push_all(b"PRIVMSG ");
                 res.push_all(dst.as_slice());
-                res.push_all(bytes!(" :\x01ACTION"));
+                res.push_all(b" :\x01ACTION");
             }
             IRCCTCP(ref cmd, ref dst) => {
-                res.push_all(bytes!("PRIVMSG "));
+                res.push_all(b"PRIVMSG ");
                 res.push_all(dst.as_slice());
-                res.push_all(bytes!(" :\x01"));
+                res.push_all(b" :\x01");
                 res.push_all(cmd.as_slice());
             }
             IRCCTCPReply(ref cmd, ref dst) => {
-                res.push_all(bytes!("NOTICE "));
+                res.push_all(b"NOTICE ");
                 res.push_all(dst.as_slice());
-                res.push_all(bytes!(" :\x01"));
+                res.push_all(b" :\x01");
                 res.push_all(cmd.as_slice());
             }
         }
@@ -776,9 +776,6 @@ mod tests {
 
     #[test]
     fn parse_line() {
-        macro_rules! b(
-            ($val:expr) => (Vec::from_slice(bytes!($val)))
-        )
         macro_rules! t(
             ($v:expr, Some($exp:expr)) => (
                 t!($v, Some($exp), $v);
@@ -799,54 +796,53 @@ mod tests {
                 assert_eq!(Line::parse($s), None);
             )
         )
-        t!(bytes!(":sendak.freenode.net 001 asldfkj :Welcome to the freenode Internet \
-            Relay Chat Network asldfkj"),
+        t!(b":sendak.freenode.net 001 asldfkj :Welcome to the freenode Internet Relay Chat Network asldfkj",
             Some(Line{
-                prefix: Some(User::parse(bytes!("sendak.freenode.net"))),
+                prefix: Some(User::parse(b"sendak.freenode.net")),
                 command: IRCCode(1),
-                args: vec![b!("asldfkj"),
-                           b!("Welcome to the freenode Internet Relay Chat Network asldfkj")]
+                args: vec![b"asldfkj",
+                           b"Welcome to the freenode Internet Relay Chat Network asldfkj"]
             }));
-        t!(bytes!("004 asdf :This is a test"),
+        t!(b"004 asdf :This is a test",
             Some(Line{
                 prefix: None,
                 command: IRCCode(4),
-                args: vec![b!("asdf"), b!("This is a test")]
+                args: vec![b"asdf", b"This is a test"]
             }));
-        t!(bytes!(":nick!user@host.com PRIVMSG #channel :Some message"),
+        t!(b":nick!user@host.com PRIVMSG #channel :Some message",
             Some(Line{
-                prefix: Some(User::parse(bytes!("nick!user@host.com"))),
+                prefix: Some(User::parse(b"nick!user@host.com")),
                 command: IRCCmd("PRIVMSG".into_maybe_owned()),
-                args: vec![b!("#channel"), b!("Some message")]
+                args: vec![b"#channel", b"Some message"]
             }));
-        t!(bytes!(" :sendak.freenode.net 001 asdf :Test"), None);
-        t!(bytes!(":sendak  001 asdf :Test"), None);
-        t!(bytes!("004"),
+        t!(b" :sendak.freenode.net 001 asdf :Test", None);
+        t!(b":sendak  001 asdf :Test", None);
+        t!(b"004",
             Some(Line{
                 prefix: None,
                 command: IRCCode(4),
                 args: vec![]
             }));
-        t!(bytes!(":bob!user@host.com PRIVMSG #channel :\x01ACTION does some stuff"),
+        t!(b":bob!user@host.com PRIVMSG #channel :\x01ACTION does some stuff",
             Some(Line{
-                prefix: Some(User::parse(bytes!("bob!user@host.com"))),
-                command: IRCAction(b!("#channel")),
-                args: vec![b!("does some stuff")]
+                prefix: Some(User::parse(b"bob!user@host.com")),
+                command: IRCAction(b"#channel"),
+                args: vec![b"does some stuff"]
             }),
-            bytes!(":bob!user@host.com PRIVMSG #channel :\x01ACTION does some stuff\x01"));
-        t!(bytes!(":bob!user@host.com PRIVMSG #channel :\x01VERSION\x01"),
+            b":bob!user@host.com PRIVMSG #channel :\x01ACTION does some stuff\x01");
+        t!(b":bob!user@host.com PRIVMSG #channel :\x01VERSION\x01",
             Some(Line{
-                prefix: Some(User::parse(bytes!("bob!user@host.com"))),
-                command: IRCCTCP(b!("VERSION"), b!("#channel")),
+                prefix: Some(User::parse(b"bob!user@host.com")),
+                command: IRCCTCP(b"VERSION", b"#channel"),
                 args: vec![]
             }));
-        t!(bytes!(":bob NOTICE #frobnitz :\x01RESPONSE to whatever\x01"),
+        t!(b":bob NOTICE #frobnitz :\x01RESPONSE to whatever\x01",
             Some(Line{
-                prefix: Some(User::parse(bytes!("bob"))),
-                command: IRCCTCPReply(b!("RESPONSE"), b!("#frobnitz")),
-                args: vec![b!("to whatever")]
+                prefix: Some(User::parse(b"bob")),
+                command: IRCCTCPReply(b"RESPONSE", b"#frobnitz"),
+                args: vec![b"to whatever"]
             }));
-        t!(bytes!(":bob föo"), None);
-        t!(bytes!(":bob f23"), None);
+        t!(b":bob f\xC3\x83\xC2\xB6o", None);
+        t!(b":bob f23", None);
     }
 }

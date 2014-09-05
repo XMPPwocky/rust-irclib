@@ -115,63 +115,57 @@ impl fmt::Show for User {
 mod tests {
     use super::User;
 
-    macro_rules! b(
-        ($args:tt) => (
-            { static b: &'static [u8] = bytes!($args); b }
-        )
-    )
-
     #[test]
     fn test_user_new() {
-        let user = User::new(b!("nick"), Some(b!("user")), Some(b!("host")));
-        assert_eq!(user.raw(), b!("nick!user@host"));
-        assert_eq!(user.nick(), b!("nick"));
-        assert_eq!(user.user(), Some(b!("user")));
-        assert_eq!(user.host(), Some(b!("host")));
+        let user = User::new(b"nick", Some(b"user"), Some(b"host"));
+        assert_eq!(user.raw(), b"nick!user@host");
+        assert_eq!(user.nick(), b"nick");
+        assert_eq!(user.user(), Some(b"user"));
+        assert_eq!(user.host(), Some(b"host"));
 
-        let user = User::new(b!("nick"), Some(b!("user")), None);
-        assert_eq!(user.raw(), b!("nick!user"));
-        assert_eq!(user.nick(), b!("nick"));
-        assert_eq!(user.user(), Some(b!("user")));
+        let user = User::new(b"nick", Some(b"user"), None);
+        assert_eq!(user.raw(), b"nick!user");
+        assert_eq!(user.nick(), b"nick");
+        assert_eq!(user.user(), Some(b"user"));
         assert_eq!(user.host(), None);
 
-        let user = User::new(b!("nick"), None, Some(b!("host")));
-        assert_eq!(user.raw(), b!("nick@host"));
-        assert_eq!(user.nick(), b!("nick"));
+        let user = User::new(b"nick", None, Some(b"host"));
+        assert_eq!(user.raw(), b"nick@host");
+        assert_eq!(user.nick(), b"nick");
         assert_eq!(user.user(), None);
-        assert_eq!(user.host(), Some(b!("host")));
+        assert_eq!(user.host(), Some(b"host"));
 
-        let user = User::new(b!("nick"), None, None);
-        assert_eq!(user.raw(), b!("nick"));
-        assert_eq!(user.nick(), b!("nick"));
+        let user = User::new(b"nick", None, None);
+        assert_eq!(user.raw(), b"nick");
+        assert_eq!(user.nick(), b"nick");
         assert_eq!(user.user(), None);
         assert_eq!(user.host(), None);
     }
 
     #[test]
     fn test_user_parse() {
-        let user = User::parse(b!("bob!fred@joe.com"));
-        assert_eq!(user.nick(), b!("bob"));
-        assert_eq!(user.user(), Some(b!("fred")));
-        assert_eq!(user.host(), Some(b!("joe.com")));
+        let user = User::parse(b"bob!fred@joe.com");
+        assert_eq!(user.nick(), b"bob");
+        assert_eq!(user.user(), Some(b"fred"));
+        assert_eq!(user.host(), Some(b"joe.com"));
 
-        let user = User::parse(b!("frob@whatever"));
-        assert_eq!(user.nick(), b!("frob"));
+        let user = User::parse(b"frob@whatever");
+        assert_eq!(user.nick(), b"frob");
         assert_eq!(user.user(), None);
-        assert_eq!(user.host(), Some(b!("whatever")));
+        assert_eq!(user.host(), Some(b"whatever"));
 
-        let user = User::parse(b!("foo!baz"));
-        assert_eq!(user.nick(), b!("foo"));
-        assert_eq!(user.user(), Some(b!("baz")));
+        let user = User::parse(b"foo!baz");
+        assert_eq!(user.nick(), b"foo");
+        assert_eq!(user.user(), Some(b"baz"));
         assert_eq!(user.host(), None);
 
-        let user = User::parse(b!("frobnitz"));
-        assert_eq!(user.nick(), b!("frobnitz"));
+        let user = User::parse(b"frobnitz");
+        assert_eq!(user.nick(), b"frobnitz");
         assert_eq!(user.user(), None);
         assert_eq!(user.host(), None);
 
-        let user = User::parse(b!("host.ircserver.com"));
-        assert_eq!(user.nick(), b!("host.ircserver.com"));
+        let user = User::parse(b"host.ircserver.com");
+        assert_eq!(user.nick(), b"host.ircserver.com");
         assert_eq!(user.user(), None);
         assert_eq!(user.host(), None);
     }
