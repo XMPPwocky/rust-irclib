@@ -1,11 +1,12 @@
 //! Management of IRC server connection
 
+use std::from_str::from_str;
+use std::str::from_utf8;
 use std::fmt;
 use std::io;
 use std::io::{IoError, IoResult, TcpStream};
 use std::io::BufferedStream;
 use std::{char,str,uint};
-use std::slice::Slice;
 use std::str::MaybeOwned;
 use std::cmp::min;
 use std::comm;
@@ -117,7 +118,7 @@ pub static DefaultPort: u16 = 6667;
 /// Note: If your Conn has no payload, you should pass () as the payload parameter.
 pub fn connect<Payload>(opts: Options<Payload>, mut payload: Payload,
                         cb: |&mut Conn, Event, &mut Payload|) -> Result {
-    let stream = match TcpStream::connect(opts.host, opts.port) {
+    let stream = match TcpStream::connect((opts.host, opts.port)) {
         Err(e) => return Err(ErrConnect(e)),
         Ok(stream) => stream
     };
@@ -250,14 +251,14 @@ impl<'a> Conn<'a> {
                 let line = match Line::parse(line.as_slice()) {
                     None => {
                         let line = line.as_slice();
-                        info!("[DEBUG] Found non-parseable line: {}", str::from_utf8_lossy(line));
+                        info!("[DEBUG] Found non-parseable line: {}", String::from_utf8_lossy(line));
                         continue;
                     }
                     Some(line) => line
                 };
                 if log_enabled!(::log::DEBUG) {
                     let line = line.to_raw();
-                    debug!("[DEBUG] Received line: {}", str::from_utf8_lossy(line.as_slice()));
+                    debug!("[DEBUG] Received line: {}", String::from_utf8_lossy(line.as_slice()));
                 }
                 handlers::handle_line(self, &line);
                 if self.logged_in {
@@ -296,7 +297,7 @@ impl<'a> Conn<'a> {
         match procs {
             None => (),
             Some(procs) => {
-                for cmd in procs.move_iter() {
+                for cmd in procs.into_iter() {
                     cmd(self, payload);
                 }
             }
@@ -337,7 +338,7 @@ impl<'a> Conn<'a> {
     /// that the caller will provide valid arguments and will ':'-prefix as necessary.
     ///
     /// The add_colon flag causes the final argument in the args list to have a ':' prepended.
-    pub fn send_command<V: Slice<u8>>(&mut self, cmd: Command, args: &[V], add_colon: bool) {
+    pub fn send_command(&mut self, cmd: Command, args: &[&[u8]], add_colon: bool) {
         if !{
             let chan = match self.write_tx {
                 None => return,
@@ -345,14 +346,14 @@ impl<'a> Conn<'a> {
             };
             let mut line = [0u8, ..512];
             let len = {
-                let mut buf = line.mut_slice_to(510);
+                let mut buf = line.slice_to_mut(510);
 
                 fn append(buf: &mut &mut [u8], v: &[u8]) {
-                    let len = buf.copy_from(v);
+                    let len = buf.clone_from_slice(v);
                     // this should work:
-                    //   *buf = buf.mut_slice_from(len);
+                    //   *buf = buf.slice_from_mut(len);
                     // but I'm getting weird borrowck issues (see mozilla/rust#11361)
-                    *buf = unsafe { ::std::mem::transmute(buf.mut_slice_from(len)) };
+                    *buf = unsafe { ::std::mem::transmute(buf.slice_from_mut(len)) };
                 }
 
                 let is_ctcp = cmd.is_ctcp();
@@ -400,9 +401,9 @@ impl<'a> Conn<'a> {
                 }
                 510 - buf.len()
             };
-            debug!("[DEBUG] Sent line: {}", str::from_utf8_lossy(line.slice_to(len)));
-            line.mut_slice_from(len).copy_from(b"\r\n");
-            chan.send_opt(line.slice_to(len+2).to_owned()).is_ok()
+            debug!("[DEBUG] Sent line: {}", String::from_utf8_lossy(line.slice_to(len)));
+            line.slice_from_mut(len).clone_from_slice(b"\r\n");
+            chan.send_opt(line.slice_to(len+2).to_vec()).is_ok()
         } {
             self.write_tx = None;
         }
@@ -421,10 +422,10 @@ impl<'a> Conn<'a> {
                 Some(ref mut c) => c
             };
             let mut line = [0u8, ..512];
-            let len = line.mut_slice_to(510).copy_from(raw);
-            debug!("[DEBUG] Sent line: {}", str::from_utf8_lossy(line.slice_to(len)));
-            line.mut_slice_from(len).copy_from(b"\r\n");
-            chan.send_opt(line.slice_to(len+2).to_owned()).is_ok()
+            let len = line.slice_to_mut(510).clone_from_slice(raw);
+            debug!("[DEBUG] Sent line: {}", String::from_utf8_lossy(line.slice_to(len)));
+            line.slice_from_mut(len).clone_from_slice(b"\r\n");
+            chan.send_opt(line.slice_to(len+2).to_vec()).is_ok()
         } {
             self.write_tx = None;
         }
@@ -539,15 +540,15 @@ impl fmt::Show for Command {
         match *self {
             IRCCmd(ref s) => write!(f, "IRCCmd({})", *s),
             IRCCode(code) => write!(f, "IRCCode({})", code),
-            IRCAction(ref v) => write!(f, "IRCAction({})", str::from_utf8_lossy(v.as_slice())),
+            IRCAction(ref v) => write!(f, "IRCAction({})", String::from_utf8_lossy(v.as_slice())),
             IRCCTCP(ref cmd, ref dst) => {
-                let cmd = str::from_utf8_lossy(cmd.as_slice());
-                let dst = str::from_utf8_lossy(dst.as_slice());
+                let cmd = String::from_utf8_lossy(cmd.as_slice());
+                let dst = String::from_utf8_lossy(dst.as_slice());
                 write!(f, "IRCCTCP({}, {})", cmd, dst)
             }
             IRCCTCPReply(ref cmd, ref dst) => {
-                let cmd = str::from_utf8_lossy(cmd.as_slice());
-                let dst = str::from_utf8_lossy(dst.as_slice());
+                let cmd = String::from_utf8_lossy(cmd.as_slice());
+                let dst = String::from_utf8_lossy(dst.as_slice());
                 write!(f, "IRCCTCPReply({}, {})", cmd, dst)
             }
         }
@@ -572,7 +573,7 @@ impl fmt::Show for Line {
             if i != 0 {
                 try!(write!(f, ", "));
             }
-            try!(write!(f, "{}", str::from_utf8_lossy(v.as_slice())));
+            try!(write!(f, "{}", String::from_utf8_lossy(v.as_slice())));
         }
         write!(f, "]")
     }
@@ -604,10 +605,10 @@ impl Line {
                 }
             }
             if cmd.len() == 3 && cmd.iter().all(|&b| b >= '0' as u8 && b <= '9' as u8) {
-                (IRCCode(uint::parse_bytes(cmd, 10).unwrap()), false)
+                (IRCCode(from_utf8(cmd).and_then(|cmd| from_str(cmd)).unwrap_or(0u)), false)
             } else if cmd.iter().all(|&b| b < 0x80 && char::is_alphabetic(b as char)) {
                 let shouldCheck = cmd == b"PRIVMSG" || cmd == b"NOTICE";
-                (IRCCmd(str::from_utf8(cmd).unwrap().to_owned().into_maybe_owned()), shouldCheck)
+                (IRCCmd(str::from_utf8(cmd).unwrap().to_string().into_maybe_owned()), shouldCheck)
             } else {
                 return None;
             }
@@ -615,32 +616,32 @@ impl Line {
         let mut args = Vec::new();
         while !v.is_empty() {
             if v[0] == ':' as u8 {
-                args.push(Vec::from_slice(v.slice_from(1)));
+                args.push((v.slice_from(1)).to_vec());
                 break;
             }
             let idx = match v.position_elem(&(' ' as u8)) {
                 None => {
-                    args.push(Vec::from_slice(v));
+                    args.push(v.to_vec());
                     break;
                 }
                 Some(idx) => idx
             };
-            args.push(Vec::from_slice(v.slice_to(idx)));
+            args.push(v.slice_to(idx).to_vec());
             v = v.slice_from(idx+1);
         }
         if checkCTCP && args.last().map_or(false, |v| v.as_slice().starts_with([0x1])) {
             let mut text = args.pop().unwrap();
             if text.len() > 1 && text.as_slice().ends_with([0x1]) {
-                text = Vec::from_slice(text.slice(1,text.len()-1));
+                text = text.slice(1,text.len()-1).to_vec();
             } else {
-                text.shift();
+              text.remove(0);
             }
-            let dst = args.move_iter().next().unwrap();
+            let dst = args.into_iter().next().unwrap();
             let ctcpcmd;
             match text.as_slice().position_elem(&(' ' as u8)) {
                 Some(idx) => {
-                    ctcpcmd = Vec::from_slice(text.slice_to(idx));
-                    args = vec![Vec::from_slice(text.slice_from(idx+1))];
+                    ctcpcmd = (text.slice_to(idx)).to_vec();
+                    args = vec![text.slice_from(idx+1).to_vec()];
                 }
                 None => {
                     ctcpcmd = text.clone();

@@ -29,11 +29,11 @@ impl User {
     ///     nickname[!username][@host]
     // TODO: make v into IntoVec<u8> once it lands
     pub fn parse(v: &[u8]) -> User {
-        let v = v.into_owned();
+        let v = v.to_vec();
 
         let (mut bangloc, mut atloc) = (None, None);
         for (i, &b) in v.iter().enumerate() {
-            if bangloc.is_none() && b == '!' as u8 {
+            if bangloc.is_none() && b == ('!' as u8) {
                 bangloc = Some(i);
             } else if b == '@' as u8 {
                 atloc = Some(i);
@@ -106,7 +106,7 @@ impl Eq for User {}
 
 impl fmt::Show for User {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = str::from_utf8_lossy(self.raw.as_slice());
+        let s = String::from_utf8_lossy(self.raw.as_slice());
         f.pad(s.as_slice())
     }
 }
